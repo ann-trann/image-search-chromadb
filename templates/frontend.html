@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Tìm kiếm ảnh bằng AI</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            padding: 20px;
+            background-color: #f8f9fa;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        h1 {
+            color: #343a40;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .info-banner {
+            background-color: #e3f2fd;
+            border-left: 4px solid #2196f3;
+            padding: 12px 20px;
+            margin-bottom: 20px;
+            border-radius: 4px;
+        }
+        .db-stats {
+            text-align: center;
+            margin-bottom: 20px;
+            font-size: 16px;
+        }
+        .search-container {
+            display: flex;
+            justify-content: center;
+            margin: 20px 0 30px 0;
+        }
+        #query {
+            padding: 12px 15px;
+            width: 60%;
+            border: 1px solid #ced4da;
+            border-radius: 4px 0 0 4px;
+            font-size: 16px;
+            box-shadow: inset 0 1px 2px rgba(0,0,0,.075);
+        }
+        #searchBtn {
+            padding: 12px 20px;
+            background-color: #4dabf7;
+            color: white;
+            border: none;
+            border-radius: 0 4px 4px 0;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: 500;
+            transition: background-color 0.2s;
+        }
+        #searchBtn:hover {
+            background-color: #339af0;
+        }
+        #results {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 20px;
+            margin-top: 30px;
+        }
+        .result-item {
+            border-radius: 8px;
+            overflow: hidden;
+            width: 220px;
+            background-color: white;
+            box-shadow: 0 3px 10px rgba(0,0,0,0.08);
+            transition: transform 0.3s, box-shadow 0.3s;
+        }
+        .result-item:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 15px rgba(0,0,0,0.1);
+        }
+        .img-container {
+            height: 180px;
+            overflow: hidden;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background-color: #f1f3f5;
+        }
+        .result-item img {
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+        }
+        .result-info {
+            padding: 12px 15px;
+        }
+        .filename {
+            font-weight: 600;
+            margin-bottom: 8px;
+            color: #343a40;
+            font-size: 15px;
+            word-break: break-all;
+        }
+        .score {
+            color: #868e96;
+            font-size: 14px;
+        }
+        .score-bar {
+            height: 6px;
+            background-color: #e9ecef;
+            border-radius: 3px;
+            margin-top: 6px;
+            overflow: hidden;
+        }
+        .score-fill {
+            height: 100%;
+            background-color: #4dabf7;
+            border-radius: 3px;
+        }
+        .loading {
+            text-align: center;
+            margin: 40px;
+            font-style: italic;
+            color: #868e96;
+        }
+        .no-results {
+            text-align: center;
+            margin: 40px;
+            color: #868e96;
+            font-size: 18px;
+        }
+        .error {
+            color: #e03131;
+            text-align: center;
+            margin: 20px;
+            padding: 15px;
+            background-color: #fff5f5;
+            border-radius: 4px;
+        }
+        .examples {
+            margin: 20px 0;
+            text-align: center;
+        }
+        .example-btn {
+            display: inline-block;
+            margin: 5px;
+            padding: 8px 12px;
+            background-color: #e9ecef;
+            border-radius: 20px;
+            font-size: 14px;
+            color: #495057;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        .example-btn:hover {
+            background-color: #dee2e6;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>Tìm kiếm hình ảnh</h1>
+
+    <!-- <div class="info-banner">
+        Hệ thống này sử dụng ChromaDB và OpenCLIP để tìm kiếm ảnh dựa trên mô tả văn bản. Nó so khớp ý tưởng trong câu tìm kiếm với nội dung hình ảnh.
+    </div> -->
+
+    <!-- <div class="db-stats" id="dbStats">
+        Đang kiểm tra dữ liệu...
+    </div> -->
+
+    <div class="search-container">
+        <input type="text" id="query" placeholder="Nhập mô tả để tìm ảnh...">
+        <button id="searchBtn">Tìm kiếm</button>
+    </div>
+
+    <div class="examples">
+        <div>Ví dụ tìm kiếm:</div>
+        <span class="example-btn" onclick="useExample('flower')">flower</span>
+        <span class="example-btn" onclick="useExample('a dog')">a dog</span>
+        <span class="example-btn" onclick="useExample('a car')">a car</span>
+        <span class="example-btn" onclick="useExample('animal')">animal</span>
+        <span class="example-btn" onclick="useExample('computer')">computer</span>
+    </div>
+
+    <div id="results"></div>
+
+    <script>
+        // Kiểm tra trạng thái DB khi trang tải xong
+        // window.addEventListener('DOMContentLoaded', function() {
+        //     checkDatabaseStatus();
+        // });
+
+        function checkDatabaseStatus() {
+            fetch('/stats')
+                .then(response => response.json())
+                .then(data => {
+                    const dbStatsDiv = document.getElementById('dbStats');
+                    if (data.status === 'ok') {
+                        if (data.count > 0) {
+                            dbStatsDiv.innerHTML = `<b>✅ Đã tìm thấy ${data.count} ảnh trong cơ sở dữ liệu</b>`;
+                            dbStatsDiv.style.color = '#2b8a3e';
+                        } else {
+                            dbStatsDiv.innerHTML = `<b>⚠️ Không có ảnh nào trong cơ sở dữ liệu. Vui lòng chạy load_images.py trước!</b>`;
+                            dbStatsDiv.style.color = '#e67700';
+                        }
+                    } else {
+                        dbStatsDiv.innerHTML = `<b>❌ Lỗi: ${data.message}</b>`;
+                        dbStatsDiv.style.color = '#e03131';
+                    }
+                })
+                .catch(err => {
+                    document.getElementById('dbStats').innerHTML = `<b>❌ Không thể kết nối với server</b>`;
+                    document.getElementById('dbStats').style.color = '#e03131';
+                });
+        }
+
+        function useExample(text) {
+            document.getElementById('query').value = text;
+            performSearch();
+        }
+
+        document.getElementById('searchBtn').addEventListener('click', performSearch);
+        document.getElementById('query').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                performSearch();
+            }
+        });
+
+        function performSearch() {
+            const query = document.getElementById('query').value.trim();
+            const resultsDiv = document.getElementById('results');
+            
+            if (!query) {
+                resultsDiv.innerHTML = '<div class="error">Vui lòng nhập từ khóa tìm kiếm!</div>';
+                return;
+            }
+
+            // Hiển thị loading
+            resultsDiv.innerHTML = '<div class="loading">Đang tìm kiếm...</div>';
+
+            fetch('/search', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ query })
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Network response was not ok');
+                }
+                return response.json();
+            })
+            .then(data => {
+                resultsDiv.innerHTML = '';  // Xóa loading
+
+                if (data.results && data.results.length > 0) {
+                    data.results.forEach(item => {
+                        // Tính điểm tương đồng (càng gần 0 càng tốt)
+                        const similarityScore = Math.max(0, 1 - item.score / 100);
+                        const scorePercent = Math.round(similarityScore * 100);
+                        
+                        const div = document.createElement('div');
+                        div.className = 'result-item';
+
+                        const imgContainer = document.createElement('div');
+                        imgContainer.className = 'img-container';
+
+                        const img = document.createElement('img');
+                        // Xác định nguồn ảnh dựa trên URI hoặc filename
+                        img.src = item.uri ? 
+                            (item.uri.startsWith('./') ? item.uri.substring(2) : item.uri) : 
+                            `/images/${item.filename}`;
+                        img.alt = item.filename;
+                        
+                        // Xử lý lỗi khi ảnh không tồn tại
+                        img.onerror = function() {
+                            this.onerror = null;
+                            this.src = 'https://via.placeholder.com/200x150?text=Image+Not+Found';
+                        };
+
+                        imgContainer.appendChild(img);
+
+                        const infoDiv = document.createElement('div');
+                        infoDiv.className = 'result-info';
+                        
+                        const filename = document.createElement('div');
+                        filename.className = 'filename';
+                        filename.textContent = item.filename;
+                        
+                        const score = document.createElement('div');
+                        score.className = 'score';
+                        score.textContent = `Độ tương đồng: ${scorePercent}%`;
+                        
+                        const scoreBar = document.createElement('div');
+                        scoreBar.className = 'score-bar';
+                        
+                        const scoreFill = document.createElement('div');
+                        scoreFill.className = 'score-fill';
+                        scoreFill.style.width = `${scorePercent}%`;
+                        
+                        scoreBar.appendChild(scoreFill);
+                        
+                        infoDiv.appendChild(filename);
+                        infoDiv.appendChild(score);
+                        infoDiv.appendChild(scoreBar);
+                        
+                        div.appendChild(imgContainer);
+                        div.appendChild(infoDiv);
+
+                        resultsDiv.appendChild(div);
+                    });
+                } else {
+                    resultsDiv.innerHTML = '<div class="no-results">Không tìm thấy kết quả phù hợp.</div>';
+                }
+            })
+            .catch(err => {
+                console.error('Lỗi:', err);
+                resultsDiv.innerHTML = `<div class="error">Lỗi khi tìm kiếm: ${err.message}</div>`;
+            });
+        }
+
+        // Tự động focus vào ô tìm kiếm khi trang tải xong
+        window.onload = function() {
+            document.getElementById('query').focus();
+        };
+    </script>
+
+</body>
+</html>
