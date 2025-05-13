@@ -28,4 +28,4 @@ A simple image search engine where users can input text queries to retrieve simi
 
 
 ## Sample Screenshot
-screenshot.png
+![Screenshot](./screenshot.png)
